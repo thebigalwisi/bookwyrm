@@ -5,6 +5,11 @@ from environs import Env
 import requests
 from django.utils.translation import gettext_lazy as _
 
+INTERNAL_IPS = [
+    # ...
+    "172.19.0.8",
+    # ...
+]
 
 env = Env()
 DOMAIN = env("DOMAIN")
@@ -62,6 +67,7 @@ INSTALLED_APPS = [
     "django_rename_app",
     "bookwyrm",
     "celery",
+    "debug_toolbar",
 ]
 
 MIDDLEWARE = [
@@ -74,6 +80,7 @@ MIDDLEWARE = [
     "bookwyrm.timezone_middleware.TimezoneMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
 
 ROOT_URLCONF = "bookwyrm.urls"
@@ -183,3 +190,12 @@ USER_AGENT = "%s (BookWyrm/%s; +https://%s/)" % (
     VERSION,
     DOMAIN,
 )
+
+
+def show_toolbar(request):
+    return True
+
+
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": show_toolbar,
+}

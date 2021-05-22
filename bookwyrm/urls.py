@@ -1,7 +1,8 @@
 """ url routing for the app and api """
+import debug_toolbar
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path, re_path
+from django.urls import path, re_path, include
 from django.views.generic.base import TemplateView
 
 from bookwyrm import settings, views
@@ -322,4 +323,5 @@ urlpatterns = [
     re_path(r"^unfollow/?$", views.unfollow, name="unfollow"),
     re_path(r"^accept-follow-request/?$", views.accept_follow_request),
     re_path(r"^delete-follow-request/?$", views.delete_follow_request),
+    path("__debug__/", include(debug_toolbar.urls)),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
