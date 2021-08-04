@@ -2,6 +2,8 @@
 import csv
 import pathlib
 from unittest.mock import patch
+import datetime
+import pytz
 
 from django.test import TestCase
 import responses
@@ -10,6 +12,11 @@ from bookwyrm import models
 from bookwyrm.importers import LibrarythingImporter
 from bookwyrm.importers.importer import import_data, handle_imported_book
 from bookwyrm.settings import DOMAIN
+
+
+def make_date(*args):
+    """helper function to easily generate a date obj"""
+    return datetime.datetime(*args, tzinfo=pytz.UTC)
 
 
 class LibrarythingImport(TestCase):
@@ -22,10 +29,9 @@ class LibrarythingImport(TestCase):
 
         # Librarything generates latin encoded exports...
         self.csv = open(datafile, "r", encoding=self.importer.encoding)
-        with patch("bookwyrm.preview_images.generate_user_preview_image_task.delay"):
-            self.user = models.User.objects.create_user(
-                "mmai", "mmai@mmai.mmai", "password", local=True
-            )
+        self.user = models.User.objects.create_user(
+            "mmai", "mmai@mmai.mmai", "password", local=True
+        )
 
         models.Connector.objects.create(
             identifier=DOMAIN,
@@ -38,13 +44,12 @@ class LibrarythingImport(TestCase):
             search_url="https://%s/search?q=" % DOMAIN,
             priority=1,
         )
-        with patch("bookwyrm.preview_images.generate_edition_preview_image_task.delay"):
-            work = models.Work.objects.create(title="Test Work")
-            self.book = models.Edition.objects.create(
-                title="Example Edition",
-                remote_id="https://example.com/book/1",
-                parent_work=work,
-            )
+        work = models.Work.objects.create(title="Test Work")
+        self.book = models.Edition.objects.create(
+            title="Example Edition",
+            remote_id="https://example.com/book/1",
+            parent_work=work,
+        )
 
     def test_create_job(self):
         """creates the import job entry and checks csv"""
@@ -84,8 +89,7 @@ class LibrarythingImport(TestCase):
     def test_import_data(self):
         """resolve entry"""
         import_job = self.importer.create_job(self.user, self.csv, False, "unlisted")
-        with patch("bookwyrm.preview_images.generate_edition_preview_image_task.delay"):
-            book = models.Edition.objects.create(title="Test Book")
+        book = models.Edition.objects.create(title="Test Book")
 
         with patch(
             "bookwyrm.models.import_job.ImportItem.get_book_from_isbn"
@@ -114,24 +118,18 @@ class LibrarythingImport(TestCase):
             )
             break
 
-        with patch("bookwyrm.preview_images.generate_edition_preview_image_task.delay"):
-            with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-                handle_imported_book(
-                    self.importer.service, self.user, import_item, False, "public"
-                )
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            handle_imported_book(
+                self.importer.service, self.user, import_item, False, "public"
+            )
 
         shelf.refresh_from_db()
         self.assertEqual(shelf.books.first(), self.book)
 
         readthrough = models.ReadThrough.objects.get(user=self.user)
         self.assertEqual(readthrough.book, self.book)
-        # I can't remember how to create dates and I don't want to look it up.
-        self.assertEqual(readthrough.start_date.year, 2007)
-        self.assertEqual(readthrough.start_date.month, 4)
-        self.assertEqual(readthrough.start_date.day, 16)
-        self.assertEqual(readthrough.finish_date.year, 2007)
-        self.assertEqual(readthrough.finish_date.month, 5)
-        self.assertEqual(readthrough.finish_date.day, 8)
+        self.assertEqual(readthrough.start_date, make_date(2007, 4, 16))
+        self.assertEqual(readthrough.finish_date, make_date(2007, 5, 8))
 
     def test_handle_imported_book_already_shelved(self):
         """librarything import added a book, this adds related connections"""
@@ -151,23 +149,19 @@ class LibrarythingImport(TestCase):
             )
             break
 
-        with patch("bookwyrm.preview_images.generate_edition_preview_image_task.delay"):
-            with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-                handle_imported_book(
-                    self.importer.service, self.user, import_item, False, "public"
-                )
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            handle_imported_book(
+                self.importer.service, self.user, import_item, False, "public"
+            )
 
         shelf.refresh_from_db()
         self.assertEqual(shelf.books.first(), self.book)
         self.assertIsNone(self.user.shelf_set.get(identifier="read").books.first())
+
         readthrough = models.ReadThrough.objects.get(user=self.user)
         self.assertEqual(readthrough.book, self.book)
-        self.assertEqual(readthrough.start_date.year, 2007)
-        self.assertEqual(readthrough.start_date.month, 4)
-        self.assertEqual(readthrough.start_date.day, 16)
-        self.assertEqual(readthrough.finish_date.year, 2007)
-        self.assertEqual(readthrough.finish_date.month, 5)
-        self.assertEqual(readthrough.finish_date.day, 8)
+        self.assertEqual(readthrough.start_date, make_date(2007, 4, 16))
+        self.assertEqual(readthrough.finish_date, make_date(2007, 5, 8))
 
     def test_handle_import_twice(self):
         """re-importing books"""
@@ -184,27 +178,21 @@ class LibrarythingImport(TestCase):
             )
             break
 
-        with patch("bookwyrm.preview_images.generate_edition_preview_image_task.delay"):
-            with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-                handle_imported_book(
-                    self.importer.service, self.user, import_item, False, "public"
-                )
-                handle_imported_book(
-                    self.importer.service, self.user, import_item, False, "public"
-                )
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            handle_imported_book(
+                self.importer.service, self.user, import_item, False, "public"
+            )
+            handle_imported_book(
+                self.importer.service, self.user, import_item, False, "public"
+            )
 
         shelf.refresh_from_db()
         self.assertEqual(shelf.books.first(), self.book)
 
         readthrough = models.ReadThrough.objects.get(user=self.user)
         self.assertEqual(readthrough.book, self.book)
-        # I can't remember how to create dates and I don't want to look it up.
-        self.assertEqual(readthrough.start_date.year, 2007)
-        self.assertEqual(readthrough.start_date.month, 4)
-        self.assertEqual(readthrough.start_date.day, 16)
-        self.assertEqual(readthrough.finish_date.year, 2007)
-        self.assertEqual(readthrough.finish_date.month, 5)
-        self.assertEqual(readthrough.finish_date.day, 8)
+        self.assertEqual(readthrough.start_date, make_date(2007, 4, 16))
+        self.assertEqual(readthrough.finish_date, make_date(2007, 5, 8))
 
     @patch("bookwyrm.activitystreams.ActivityStream.add_status")
     def test_handle_imported_book_review(self, _):
@@ -218,17 +206,14 @@ class LibrarythingImport(TestCase):
             job_id=import_job.id, index=0, data=entry, book=self.book
         )
 
-        with patch("bookwyrm.preview_images.generate_edition_preview_image_task.delay"):
-            with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-                handle_imported_book(
-                    self.importer.service, self.user, import_item, True, "unlisted"
-                )
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            handle_imported_book(
+                self.importer.service, self.user, import_item, True, "unlisted"
+            )
         review = models.Review.objects.get(book=self.book, user=self.user)
         self.assertEqual(review.content, "chef d'oeuvre")
         self.assertEqual(review.rating, 5)
-        self.assertEqual(review.published_date.year, 2007)
-        self.assertEqual(review.published_date.month, 5)
-        self.assertEqual(review.published_date.day, 8)
+        self.assertEqual(review.published_date, make_date(2007, 5, 8))
         self.assertEqual(review.privacy, "unlisted")
 
     def test_handle_imported_book_reviews_disabled(self):
@@ -242,11 +227,10 @@ class LibrarythingImport(TestCase):
             job_id=import_job.id, index=0, data=entry, book=self.book
         )
 
-        with patch("bookwyrm.preview_images.generate_edition_preview_image_task.delay"):
-            with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
-                handle_imported_book(
-                    self.importer.service, self.user, import_item, False, "unlisted"
-                )
+        with patch("bookwyrm.models.activitypub_mixin.broadcast_task.delay"):
+            handle_imported_book(
+                self.importer.service, self.user, import_item, False, "unlisted"
+            )
         self.assertFalse(
             models.Review.objects.filter(book=self.book, user=self.user).exists()
         )
