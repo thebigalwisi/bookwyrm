@@ -22,13 +22,14 @@ class TemplateTags(TestCase):
 
     def setUp(self):
         """create some filler objects"""
-        self.user = models.User.objects.create_user(
-            "mouse@example.com",
-            "mouse@mouse.mouse",
-            "mouseword",
-            local=True,
-            localname="mouse",
-        )
+        with patch("bookwyrm.suggested_users.rerank_suggestions_task.delay"):
+            self.user = models.User.objects.create_user(
+                "mouse@example.com",
+                "mouse@mouse.mouse",
+                "mouseword",
+                local=True,
+                localname="mouse",
+            )
         with patch("bookwyrm.models.user.set_remote_server.delay"):
             self.remote_user = models.User.objects.create_user(
                 "rat",
@@ -174,3 +175,10 @@ class TemplateTags(TestCase):
 
         result = bookwyrm_tags.related_status(notification)
         self.assertIsInstance(result, models.Status)
+
+    def test_get_next_shelf(self, *_):
+        """self progress helper"""
+        self.assertEqual(bookwyrm_tags.get_next_shelf("to-read"), "reading")
+        self.assertEqual(bookwyrm_tags.get_next_shelf("reading"), "read")
+        self.assertEqual(bookwyrm_tags.get_next_shelf("read"), "read")
+        self.assertEqual(bookwyrm_tags.get_next_shelf("blooooga"), "to-read")

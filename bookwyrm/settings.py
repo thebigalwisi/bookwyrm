@@ -81,6 +81,7 @@ INSTALLED_APPS = [
     "bookwyrm",
     "celery",
     "debug_toolbar",
+    "imagekit",
     "storages",
 ]
 
@@ -125,7 +126,11 @@ REDIS_ACTIVITY_PORT = env("REDIS_ACTIVITY_PORT", 6379)
 REDIS_ACTIVITY_PASSWORD = env("REDIS_ACTIVITY_PASSWORD", None)
 
 MAX_STREAM_LENGTH = int(env("MAX_STREAM_LENGTH", 200))
-STREAMS = ["home", "local", "federated"]
+
+STREAMS = [
+    {"key": "home", "name": _("Home Timeline"), "shortname": _("Home")},
+    {"key": "books", "name": _("Books Timeline"), "shortname": _("Books")},
+]
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
@@ -194,6 +199,9 @@ USER_AGENT = "%s (BookWyrm/%s; +https://%s/)" % (
     DOMAIN,
 )
 
+# Imagekit generated thumbnails
+ENABLE_THUMBNAIL_GENERATION = env.bool("ENABLE_THUMBNAIL_GENERATION", False)
+IMAGEKIT_CACHEFILE_DIR = "thumbnails"
 
 def show_toolbar(request):
     return True

@@ -16,15 +16,16 @@ class InboxCreate(TestCase):
 
     def setUp(self):
         """basic user and book data"""
-        self.local_user = models.User.objects.create_user(
-            "mouse@example.com",
-            "mouse@mouse.com",
-            "mouseword",
-            local=True,
-            localname="mouse",
-        )
+        with patch("bookwyrm.suggested_users.rerank_suggestions_task.delay"):
+            self.local_user = models.User.objects.create_user(
+                "mouse@example.com",
+                "mouse@mouse.com",
+                "mouseword",
+                local=True,
+                localname="mouse",
+            )
         self.local_user.remote_id = "https://example.com/user/mouse"
-        self.local_user.save(broadcast=False)
+        self.local_user.save(broadcast=False, update_fields=["remote_id"])
         with patch("bookwyrm.models.user.set_remote_server.delay"):
             self.remote_user = models.User.objects.create_user(
                 "rat",
@@ -46,7 +47,8 @@ class InboxCreate(TestCase):
         }
         models.SiteSettings.objects.create()
 
-    def test_create_status(self, _):
+    @patch("bookwyrm.activitystreams.ActivityStream.add_status")
+    def test_create_status(self, *_):
         """the "it justs works" mode"""
         datafile = pathlib.Path(__file__).parent.joinpath(
             "../../data/ap_quotation.json"
@@ -69,6 +71,33 @@ class InboxCreate(TestCase):
         )
         self.assertEqual(status.quote, "quote body")
         self.assertEqual(status.content, "commentary")
+        self.assertEqual(status.user, self.local_user)
+
+        # while we're here, lets ensure we avoid dupes
+        views.inbox.activity_task(activity)
+        self.assertEqual(models.Status.objects.count(), 1)
+
+    @patch("bookwyrm.activitystreams.ActivityStream.add_status")
+    def test_create_comment_with_reading_status(self, *_):
+        """the "it justs works" mode"""
+        datafile = pathlib.Path(__file__).parent.joinpath("../../data/ap_comment.json")
+        status_data = json.loads(datafile.read_bytes())
+        status_data["readingStatus"] = "to-read"
+
+        models.Edition.objects.create(
+            title="Test Book", remote_id="https://example.com/book/1"
+        )
+        activity = self.create_json
+        activity["object"] = status_data
+
+        with patch("bookwyrm.activitystreams.ActivityStream.add_status") as redis_mock:
+            views.inbox.activity_task(activity)
+            self.assertTrue(redis_mock.called)
+
+        status = models.Comment.objects.get()
+        self.assertEqual(status.remote_id, "https://example.com/user/mouse/comment/6")
+        self.assertEqual(status.content, "commentary")
+        self.assertEqual(status.reading_status, "to-read")
         self.assertEqual(status.user, self.local_user)
 
         # while we're here, lets ensure we avoid dupes

@@ -16,13 +16,14 @@ class InviteViews(TestCase):
     def setUp(self):
         """we need basic test data and mocks"""
         self.factory = RequestFactory()
-        self.local_user = models.User.objects.create_user(
-            "mouse@local.com",
-            "mouse@mouse.mouse",
-            "password",
-            local=True,
-            localname="mouse",
-        )
+        with patch("bookwyrm.suggested_users.rerank_suggestions_task.delay"):
+            self.local_user = models.User.objects.create_user(
+                "mouse@local.com",
+                "mouse@mouse.mouse",
+                "password",
+                local=True,
+                localname="mouse",
+            )
         models.SiteSettings.objects.create()
 
     def test_invite_page(self):
@@ -50,6 +51,26 @@ class InviteViews(TestCase):
         self.assertIsInstance(result, TemplateResponse)
         result.render()
         self.assertEqual(result.status_code, 200)
+
+    def test_manage_invites_post(self):
+        """there are so many views, this just makes sure it LOADS"""
+        view = views.ManageInvites.as_view()
+        form = forms.CreateInviteForm()
+        form.data["use_limit"] = 3
+        form.data["expiry"] = ""
+        request = self.factory.post("", form.data)
+        request.user = self.local_user
+        request.user.is_superuser = True
+
+        result = view(request)
+
+        self.assertIsInstance(result, TemplateResponse)
+        result.render()
+        self.assertEqual(result.status_code, 200)
+
+        invite = models.SiteInvite.objects.get()
+        self.assertEqual(invite.use_limit, 3)
+        self.assertIsNone(invite.expiry)
 
     def test_invite_request(self):
         """request to join a server"""

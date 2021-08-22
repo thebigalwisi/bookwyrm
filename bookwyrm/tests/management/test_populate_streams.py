@@ -12,16 +12,17 @@ class Activitystreams(TestCase):
 
     def setUp(self):
         """we need some stuff"""
-        self.local_user = models.User.objects.create_user(
-            "mouse", "mouse@mouse.mouse", "password", local=True, localname="mouse"
-        )
-        self.another_user = models.User.objects.create_user(
-            "nutria",
-            "nutria@nutria.nutria",
-            "password",
-            local=True,
-            localname="nutria",
-        )
+        with patch("bookwyrm.suggested_users.rerank_suggestions_task.delay"):
+            self.local_user = models.User.objects.create_user(
+                "mouse", "mouse@mouse.mouse", "password", local=True, localname="mouse"
+            )
+            self.another_user = models.User.objects.create_user(
+                "nutria",
+                "nutria@nutria.nutria",
+                "password",
+                local=True,
+                localname="nutria",
+            )
         with patch("bookwyrm.models.user.set_remote_server.delay"):
             self.remote_user = models.User.objects.create_user(
                 "rat",
@@ -41,8 +42,6 @@ class Activitystreams(TestCase):
                 user=self.local_user, content="hi", book=self.book
             )
 
-        with patch(
-            "bookwyrm.activitystreams.ActivityStream.populate_store"
-        ) as redis_mock:
+        with patch("bookwyrm.activitystreams.populate_stream_task.delay") as redis_mock:
             populate_streams()
         self.assertEqual(redis_mock.call_count, 6)  # 2 users x 3 streams

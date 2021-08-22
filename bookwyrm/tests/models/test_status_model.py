@@ -22,9 +22,10 @@ class Status(TestCase):
 
     def setUp(self):
         """useful things for creating a status"""
-        self.local_user = models.User.objects.create_user(
-            "mouse", "mouse@mouse.mouse", "mouseword", local=True, localname="mouse"
-        )
+        with patch("bookwyrm.suggested_users.rerank_suggestions_task.delay"):
+            self.local_user = models.User.objects.create_user(
+                "mouse", "mouse@mouse.mouse", "mouseword", local=True, localname="mouse"
+            )
         with patch("bookwyrm.models.user.set_remote_server.delay"):
             self.remote_user = models.User.objects.create_user(
                 "rat",
@@ -325,7 +326,7 @@ class Status(TestCase):
         self.assertEqual(activity["type"], "Note")
         self.assertEqual(
             activity["content"],
-            'Rated <em><a href="%s">%s</a></em>: 3 stars'
+            'rated <em><a href="%s">%s</a></em>: 3 stars'
             % (self.book.remote_id, self.book.title),
         )
         self.assertEqual(activity["attachment"][0].type, "Document")
