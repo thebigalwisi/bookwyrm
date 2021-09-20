@@ -66,6 +66,9 @@ urlpatterns = [
         r"^password-reset/(?P<code>[A-Za-z0-9]+)/?$", views.PasswordReset.as_view()
     ),
     # admin
+    re_path(
+        r"^settings/dashboard/?$", views.Dashboard.as_view(), name="settings-dashboard"
+    ),
     re_path(r"^settings/site-settings/?$", views.Site.as_view(), name="settings-site"),
     re_path(
         r"^settings/announcements/?$",
@@ -84,7 +87,7 @@ urlpatterns = [
     ),
     re_path(
         r"^settings/email-preview/?$",
-        views.site.email_preview,
+        views.admin.site.email_preview,
         name="settings-email-preview",
     ),
     re_path(
@@ -96,7 +99,7 @@ urlpatterns = [
         name="settings-user",
     ),
     re_path(
-        r"^settings/federation/?$",
+        r"^settings/federation/(?P<status>(federated|blocked))?/?$",
         views.Federation.as_view(),
         name="settings-federation",
     ),
@@ -107,12 +110,12 @@ urlpatterns = [
     ),
     re_path(
         r"^settings/federation/(?P<server>\d+)/block?$",
-        views.federation.block_server,
+        views.block_server,
         name="settings-federated-server-block",
     ),
     re_path(
         r"^settings/federation/(?P<server>\d+)/unblock?$",
-        views.federation.unblock_server,
+        views.unblock_server,
         name="settings-federated-server-unblock",
     ),
     re_path(
@@ -142,6 +145,26 @@ urlpatterns = [
         r"^invite-request/?$", views.InviteRequest.as_view(), name="invite-request"
     ),
     re_path(r"^invite/(?P<code>[A-Za-z0-9]+)/?$", views.Invite.as_view()),
+    re_path(
+        r"^settings/email-blocklist/?$",
+        views.EmailBlocklist.as_view(),
+        name="settings-email-blocks",
+    ),
+    re_path(
+        r"^settings/email-blocks/(?P<domain_id>\d+)/delete/?$",
+        views.EmailBlocklist.as_view(),
+        name="settings-email-blocks-delete",
+    ),
+    re_path(
+        r"^settings/ip-blocklist/?$",
+        views.IPBlocklist.as_view(),
+        name="settings-ip-blocks",
+    ),
+    re_path(
+        r"^settings/ip-blocks/(?P<block_id>\d+)/delete/?$",
+        views.IPBlocklist.as_view(),
+        name="settings-ip-blocks-delete",
+    ),
     # moderation
     re_path(r"^settings/reports/?$", views.Reports.as_view(), name="settings-reports"),
     re_path(
@@ -153,6 +176,16 @@ urlpatterns = [
         r"^settings/reports/(?P<user_id>\d+)/suspend/?$",
         views.suspend_user,
         name="settings-report-suspend",
+    ),
+    re_path(
+        r"^settings/reports/(?P<user_id>\d+)/unsuspend/?$",
+        views.unsuspend_user,
+        name="settings-report-unsuspend",
+    ),
+    re_path(
+        r"^settings/reports/(?P<user_id>\d+)/delete/?$",
+        views.moderator_delete_user,
+        name="settings-delete-user",
     ),
     re_path(
         r"^settings/reports/(?P<report_id>\d+)/resolve/?$",
@@ -216,10 +249,13 @@ urlpatterns = [
         views.Following.as_view(),
         name="user-following",
     ),
+    re_path(r"^hide-suggestions/?$", views.hide_suggestions, name="hide-suggestions"),
     # lists
     re_path(r"%s/lists/?$" % USER_PATH, views.UserLists.as_view(), name="user-lists"),
     re_path(r"^list/?$", views.Lists.as_view(), name="lists"),
+    re_path(r"^list/saved/?$", views.SavedLists.as_view(), name="saved-lists"),
     re_path(r"^list/(?P<list_id>\d+)(.json)?/?$", views.List.as_view(), name="list"),
+    re_path(r"^list/delete/(?P<list_id>\d+)/?$", views.delete_list, name="delete-list"),
     re_path(r"^list/add-book/?$", views.list.add_book, name="list-add-book"),
     re_path(
         r"^list/(?P<list_id>\d+)/remove/?$",
@@ -234,6 +270,8 @@ urlpatterns = [
     re_path(
         r"^list/(?P<list_id>\d+)/curate/?$", views.Curate.as_view(), name="list-curate"
     ),
+    re_path(r"^save-list/(?P<list_id>\d+)/?$", views.save_list, name="list-save"),
+    re_path(r"^unsave-list/(?P<list_id>\d+)/?$", views.unsave_list, name="list-unsave"),
     # User books
     re_path(r"%s/books/?$" % USER_PATH, views.Shelf.as_view(), name="user-shelves"),
     re_path(
@@ -295,8 +333,10 @@ urlpatterns = [
         name="redraft",
     ),
     # interact
-    re_path(r"^favorite/(?P<status_id>\d+)/?$", views.Favorite.as_view()),
-    re_path(r"^unfavorite/(?P<status_id>\d+)/?$", views.Unfavorite.as_view()),
+    re_path(r"^favorite/(?P<status_id>\d+)/?$", views.Favorite.as_view(), name="fav"),
+    re_path(
+        r"^unfavorite/(?P<status_id>\d+)/?$", views.Unfavorite.as_view(), name="unfav"
+    ),
     re_path(r"^boost/(?P<status_id>\d+)/?$", views.Boost.as_view()),
     re_path(r"^unboost/(?P<status_id>\d+)/?$", views.Unboost.as_view()),
     # books

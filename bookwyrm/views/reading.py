@@ -5,7 +5,7 @@ import dateutil.tz
 from dateutil.parser import ParserError
 
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseBadRequest, HttpResponseNotFound
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.utils.decorators import method_decorator
@@ -13,7 +13,7 @@ from django.views import View
 from django.views.decorators.http import require_POST
 
 from bookwyrm import forms, models
-from .helpers import get_edition, handle_reading_status
+from .helpers import get_edition, handle_reading_status, is_api_request
 
 
 @method_decorator(login_required, name="dispatch")
@@ -31,6 +31,7 @@ class ReadingStatus(View):
         }.get(status)
         if not template:
             return HttpResponseNotFound()
+        # redirect if we're already on this shelf
         return TemplateResponse(request, f"reading_progress/{template}", {"book": book})
 
     def post(self, request, status, book_id):
@@ -58,11 +59,14 @@ class ReadingStatus(View):
             )
             .first()
         )
+
+        referer = request.headers.get("Referer", "/")
+        referer = "/" if "reading-status" in referer else referer
         if current_status_shelfbook is not None:
             if current_status_shelfbook.shelf.identifier != desired_shelf.identifier:
                 current_status_shelfbook.delete()
             else:  # It already was on the shelf
-                return redirect(request.headers.get("Referer", "/"))
+                return redirect(referer)
 
         models.ShelfBook.objects.create(
             book=book, shelf=desired_shelf, user=request.user
@@ -88,7 +92,9 @@ class ReadingStatus(View):
                 privacy = request.POST.get("privacy")
                 handle_reading_status(request.user, desired_shelf, book, privacy)
 
-        return redirect(request.headers.get("Referer", "/"))
+        if is_api_request(request):
+            return HttpResponse()
+        return redirect(referer)
 
 
 @login_required
